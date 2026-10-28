@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gas Cylinder Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one fixed line on top (no task questions in the simulation, teacher 2026-10-19), then the four level buttons; the cylinder on a heater
+   (left, pinned) beside Keep constant, Heater, Piston and the meters (right); the data table at the bottom. Stacks on
+   phones. Light mode only (teacher, 2026-10-11).
+   Version 3 (2026-10-19): the water bath and the walls choice are gone (teacher: "remove the bath, it is confusing").
+   Heat comes from a heater in exact steps; the four Keep constant options are the four rows of the students' table.
+   Model (stated in the plan, not on screen, teacher 2026-10-18): air as an ideal gas; frictionless piston moved
+   slowly; outside pressure 100 kPa; No heat = insulated cylinder, heater off. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --fg: #1b2733;
+  --muted: #5d6b78;
+  --line: #d9dee4;
+  --accent: #6b2fa0;          /* the deck's purple */
+  --heat: #d64545;
+  --cool: #2479b9;
+  --ok: #1f8a4c;
+  --warn: #b5541c;
+  --steel: #8a96a2;
+  --foam: #f3d98b;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 28px; display: grid; gap: 14px; }
+h1 { font-size: 1.6rem; margin: 0; color: var(--accent); }
+.pick { border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 7px 16px; font-size: 1rem; }
+.pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 700; }
+.inrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inrow label { min-width: 15em; }
+.inrow input[type=text] { font: inherit; font-family: var(--font-num); width: 9em; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 8px; }
+.res { margin: 0; font-weight: 700; }
+.res.ok { color: var(--ok); }
+.res.bad { color: var(--warn); }
+.lvl-lbl { font-weight: 700; color: var(--muted); }
+.intro { margin: 0; border: 2px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 1.1rem; font-weight: 700; background: var(--surface); }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.box h2 { margin: 0; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.4; }
+.lab { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; align-items: start; }
+.side { display: grid; gap: 14px; min-width: 0; }
+.pinned { position: sticky; top: 8px; }
+@media (max-width: 900px) { .lab { grid-template-columns: minmax(0, 1fr); } .pinned { position: static; } }
+.box svg { display: block; width: 100%; height: auto; }
+#bench { max-height: 520px; }
+.modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 520px) { .modes { grid-template-columns: minmax(0, 1fr); } }
+.opt { border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 10px; padding: 8px 12px; font-size: 1rem; text-align: left; }
+.opt[aria-pressed="true"] { border-color: var(--accent); background: #f1e9f8; font-weight: 700; }
+.opt small { display: block; font-weight: 400; color: var(--muted); font-size: 0.82rem; }
+.note { margin: 0; font-size: 0.88rem; color: var(--muted); }
+.note.warn { color: var(--warn); font-weight: 700; }
+.steps { display: grid; grid-template-columns: 7.5em repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.steps .lab2 { font-weight: 700; font-size: 0.95rem; }
+.step { border: 1.5px solid var(--line); background: var(--bg); border-radius: 8px; height: 40px; font-family: var(--font-num); font-size: 1rem; }
+.step.add { border-color: var(--heat); }
+.step.rem { border-color: var(--cool); }
+.meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.meter { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; }
+.meter .lbl { font-size: 0.82rem; color: var(--muted); line-height: 1.25; }
+.meter .val { font-family: var(--font-num); font-size: 1.35rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meter.q { border-color: var(--heat); }
+.meter.w { border-color: var(--cool); }
+.meter.u { border-color: var(--accent); }
+@media (max-width: 420px) { .meters { grid-template-columns: minmax(0, 1fr); } .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } .steps .lab2 { grid-column: 1 / -1; } }
+.act { border: 0; border-radius: 10px; padding: 9px 16px; font-size: 1rem; font-weight: 700; color: #fff; background: var(--accent); }
+.ghost { border: 1.5px solid var(--line); background: transparent; color: var(--fg); border-radius: 10px; padding: 8px 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 400; font-size: 0.82rem; }
+td.num, th.num { text-align: right; }
+td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+.empty td { color: var(--muted); font-style: italic; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gas Cylinder Lab</h1>
+  <p class="intro">Explore the simulation freely, then answer the questions in your task.</p>
+  <div class="btns" role="group" aria-labelledby="lv-lbl">
+    <span class="lvl-lbl" id="lv-lbl">Your level:</span>
+    <button class="pick" data-level="Emerging">Emerging</button>
+    <button class="pick" data-level="Developing">Developing</button>
+    <button class="pick" data-level="Proficient">Proficient</button>
+    <button class="pick" data-level="Exceeding">Exceeding</button>
+  </div>
+
+  <div class="lab">
+    <div class="side pinned">
+      <section class="box" aria-labelledby="h-bench">
+        <h2 id="h-bench">Experiment</h2>
+        <svg id="bench" viewBox="0 0 480 470" role="img" aria-label="A cylinder of air with a piston on a heater, with a thermometer and a pressure gauge"></svg>
+      </section>
+    </div>
+
+    <div class="side" id="gasSide">
+      <section class="box" aria-labelledby="h-mode">
+        <h2 id="h-mode">Keep constant</h2>
+        <div class="modes">
+          <button class="opt" data-mode="volume">Volume<small>The piston is locked</small></button>
+          <button class="opt" data-mode="pressure">Pressure<small>The piston is free: the pressure stays 100 kPa</small></button>
+          <button class="opt" data-mode="temperature">Temperature<small>The piston moves by itself so the temperature stays the same</small></button>
+          <button class="opt" data-mode="noheat">No heat<small>The cylinder is insulated and the heater is off: you move the piston</small></button>
+        </div>
+        <p class="note">Choosing an option starts with fresh gas at 23 °C and 100 kPa.</p>
+      </section>
+
+      <section class="box" aria-labelledby="h-heater">
+        <h2 id="h-heater">Heater</h2>
+        <div class="steps">
+          <span class="lab2">Add heat</span>
+          <button class="step add" data-q="1">+1 J</button><button class="step add" data-q="10">+10 J</button><button class="step add" data-q="100">+100 J</button>
+          <span class="lab2">Remove heat</span>
+          <button class="step rem" data-q="-1">−1 J</button><button class="step rem" data-q="-10">−10 J</button><button class="step rem" data-q="-100">−100 J</button>
+        </div>
+        <p class="note" id="heaternote"></p>
+      </section>
+
+      <section class="box" aria-labelledby="h-piston">
+        <h2 id="h-piston">Piston</h2>
+        <div class="steps">
+          <span class="lab2">Push in</span>
+          <button class="step" data-w="-1">1 J</button><button class="step" data-w="-10">10 J</button><button class="step" data-w="-100">100 J</button>
+          <span class="lab2">Pull out</span>
+          <button class="step" data-w="1">1 J</button><button class="step" data-w="10">10 J</button><button class="step" data-w="100">100 J</button>
+        </div>
+        <p class="note" id="pistonnote"></p>
+      </section>
+
+      <section class="box" aria-labelledby="h-meters">
+        <h2 id="h-meters">Energy meters (since your last Record)</h2>
+        <div class="meters">
+          <div class="meter q"><span class="lbl"><b>Q</b>: heat into the gas (J)</span><span class="val" id="mQ"></span></div>
+          <div class="meter w"><span class="lbl"><b>W</b>: work done by the gas (J)</span><span class="val" id="mW"></span></div>
+          <div class="meter u"><span class="lbl"><b>ΔE<sub>th</sub></b>: change in thermal energy of the gas (J)</span><span class="val" id="mU"></span></div>
+        </div>
+        <div class="btns">
+          <button class="act" id="record">Record</button>
+          <button class="ghost" id="reset">Start again</button>
+        </div>
+        <p class="note">Record adds this run to the table and sets the meters back to 0 for the next run. Start again: fresh gas at 23 °C. Positive Q: the gas absorbs heat. Positive W: the gas expands and does work.</p>
+        <p class="note warn" id="limit" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <!-- Boiling water: water heated, then boiled, under a free piston at 1 atm. Students watch it happen (Start), then
+         calculate the mass that boils and the change in thermal energy; Check says only whether each value matches. -->
+    <div class="side" id="boilSide" hidden>
+      <section class="box" aria-labelledby="h-boil">
+        <h2 id="h-boil">Boiling water</h2>
+        <p class="note">0.043 kg of water at 23 °C sits in a cylinder under a free piston (outside pressure 1 atm). The heater gives 61,700 J of heat in total.</p>
+        <div class="btns">
+          <button class="act" id="b-go">▶ Start</button>
+          <button class="ghost" id="b-reset">Reset</button>
+        </div>
+        <p class="res" id="b-msg" aria-live="polite"></p>
+      </section>
+      <section class="box" aria-labelledby="h-bdata">
+        <h2 id="h-bdata">Data for water</h2>
+        <div class="tablewrap"><table>
+          <tbody>
+            <tr><td>Specific heat capacity of liquid water, c</td><td class="num">4180 J/(kg·°C)</td></tr>
+            <tr><td>Boiling point at 1 atm</td><td class="num">100 °C</td></tr>
+            <tr><td>Latent heat of vaporization, L<sub>v</sub></td><td class="num">2,260,000 J/kg</td></tr>
+            <tr><td>Work done by each gram of steam as it forms (pushing the piston up)</td><td class="num">169.4 J</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+      <section class="box" aria-labelledby="h-banswer">
+        <h2 id="h-banswer">Your answer</h2>
+        <div class="inrow"><label for="b-m"><b>Mass of water that boils</b></label><input type="text" id="b-m" inputmode="decimal" autocomplete="off"> g</div>
+        <div class="inrow"><label for="b-e"><b>Change in thermal energy of the water and steam</b></label><input type="text" id="b-e" inputmode="decimal" autocomplete="off"> J</div>
+        <div class="btns"><button class="act" id="b-check">Check</button></div>
+        <p class="res" id="b-res" aria-live="polite"></p>
+      </section>
+    </div>
+  </div>
+
+  <section class="box" id="dataBox" aria-labelledby="h-data">
+    <h2 id="h-data">Data table</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Run</th><th>Kept constant</th><th class="num">Q (J)</th><th class="num">W (J)</th><th class="num">ΔE<sub>th</sub> (J)</th><th class="num">T (°C)</th><th class="num">P (kPa)</th><th class="num">V (L)</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div class="btns"><button class="ghost" id="clear">Clear the table</button></div>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---- Physics: a fixed amount of air (diatomic ideal gas). nR = 2 J/K, nCv = 5 J/K, nCp = 7 J/K (n = 0.2406 mol).
+// Energies in J, pressure in kPa, volume in L (kPa·L = J), temperature in K.
+// Thermal energy E_th = nCv·T (kinetic + potential energy of the particles; for an ideal gas it depends only on T).
+const NR = 2, NCV = 5, NCP = 7, GM1 = NR / NCV;     // γ − 1 = 0.4
+const T_START = 296.15, P_OUT = 100;                // 23 °C; outside pressure 100 kPa
+const T_MIN = 123.15, T_MAX = 773.15;               // −150 °C … 500 °C
+const V_MIN = 1, V_MAX = 15;
+const START = { mode: "volume", T: T_START, V: NR * T_START / P_OUT, Q: 0, W: 0, E0: NCV * T_START };
+const S = Object.assign({}, START);
+let rows = [], glow = 0;                            // glow > 0: heater red, < 0: cooler blue (fades)
+
+const P = () => NR * S.T / S.V;
+const dE = () => NCV * S.T - S.E0;
+const C = T => T - 273.15;
+
+// Number format: 2 decimal places (3 for the volume), no trailing zeros, no "−0".
+function fmt(x, sign, dp) {
+  const k = Math.pow(10, dp || 2);
+  let r = Math.round(x * k) / k;
+  if (Object.is(r, -0) || Math.abs(r) < 0.5 / k) r = 0;
+  let s = r.toLocaleString("en-US", { maximumFractionDigits: dp || 2 }).replace("-", "−");
+  if (sign && r > 0) s = "+" + s;
+  return s;
+}
+
+// ---- Processes. Each returns the new state, or null if it would leave the lab's range.
+function inRange(T, V) { return T >= T_MIN && T <= T_MAX && V >= V_MIN - 1e-9 && V <= V_MAX + 1e-9; }
+
+function heat(q) {                                  // the heater gives the gas q joules (q < 0: removes heat)
+  let T = S.T, V = S.V, W = 0;
+  if (S.mode === "volume") {                        // constant volume: W = 0, ΔE_th = Q
+    T += q / NCV;
+  } else if (S.mode === "pressure") {               // constant pressure: Q = nCp ΔT, W = nR ΔT
+    T += q / NCP; W = NR * q / NCP; V = NR * T / P_OUT;
+  } else if (S.mode === "temperature") {            // constant temperature: ΔE_th = 0, W = Q = nRT ln(V2/V1)
+    W = q; V = S.V * Math.exp(q / (NR * S.T));
+  } else return;
+  if (!inRange(T, V)) return limit();
+  S.T = T; S.V = V; S.W += W; S.Q += q; glow = q > 0 ? 1 : -1;
+  update();
+}
+
+function work(w) {                                  // No heat: the gas does w joules of work (w < 0: work done on it)
+  if (S.mode !== "noheat") return;
+  const T = S.T - w / NCV;                          // Q = 0, so ΔE_th = −W
+  const V = S.V * Math.pow(S.T / T, 1 / GM1);       // slow adiabatic: T V^(γ−1) constant
+  if (!inRange(T, V)) return limit();
+  S.T = T; S.V = V; S.W += w;
+  update();
+}
+
+function setMode(m) {                             // each Keep constant option is a new run with fresh gas at 23 °C and 100 kPa
+  if (m === S.mode) return;
+  Object.assign(S, START, { mode: m });
+  update();
+}
+
+function limit() { $("limit").textContent = "That would take the gas beyond what this lab can show. Remove some heat or move the piston the other way."; }
+function zero() { S.Q = 0; S.W = 0; S.E0 = NCV * S.T; update(); }
+function reset() { Object.assign(S, START, { mode: S.mode }); update(); }
+
+// ---- Drawing
+const svg = document.getElementById("bench");
+const NS = "http://www.w3.org/2000/svg";
+const CX = 150, CW = 150, BOT = 400, TOP_MAX = 60;  // cylinder inner box
+const vToH = v => (v / V_MAX) * (BOT - TOP_MAX);
+const dots = Array.from({ length: 36 }, () => ({ x: Math.random(), y: Math.random(), a: Math.random() * 2 * Math.PI }));
+let shownV = S.V;
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function draw() {
+  svg.textContent = "";
+  const pistonY = BOT - vToH(shownV), off = S.mode === "noheat";
+  // heater plate under the cylinder: red while heating, blue while cooling, grey when off
+  const g = Math.abs(glow);
+  const plate = off ? "#c9cfd6" : glow > 0 ? `rgb(${Math.round(200 + 40 * g)},${Math.round(200 - 120 * g)},${Math.round(200 - 120 * g)})`
+                                            : glow < 0 ? `rgb(${Math.round(200 - 140 * g)},${Math.round(200 - 60 * g)},${Math.round(200 + 40 * g)})` : "#b8c0c8";
+  svg.appendChild(el("rect", { x: CX - 30, y: BOT + 6, width: CW + 60, height: 22, rx: 5, fill: plate, stroke: "var(--steel)", "stroke-width": 2 }));
+  svg.appendChild(el("text", { x: CX + CW / 2, y: BOT + 50, "text-anchor": "middle", "font-size": 14, fill: "var(--muted)", "font-weight": 700 }, off ? "heater off" : "heater"));
+  if (off) {                                        // insulating jacket
+    svg.appendChild(el("rect", { x: CX - 16, y: TOP_MAX - 10, width: CW + 32, height: BOT - TOP_MAX + 16, rx: 6, fill: "var(--foam)" }));
+    svg.appendChild(el("text", { x: CX - 20, y: TOP_MAX - 6, "text-anchor": "end", "font-size": 13, fill: "#7a5b00", "font-weight": 700 }, "insulation"));
+  }
+  // cylinder
+  svg.appendChild(el("rect", { x: CX, y: TOP_MAX - 10, width: CW, height: BOT - TOP_MAX + 10, fill: "#fff", stroke: "var(--steel)", "stroke-width": 4 }));
+  // gas
+  const warm = Math.max(0, Math.min(1, (S.T - 200) / 500));
+  const gasCol = "rgb(" + Math.round(200 + 55 * warm) + "," + Math.round(225 - 60 * warm) + "," + Math.round(250 - 120 * warm) + ")";
+  svg.appendChild(el("rect", { x: CX + 2, y: pistonY, width: CW - 4, height: BOT - pistonY, fill: gasCol }));
+  for (const d of dots) {
+    svg.appendChild(el("circle", { cx: CX + 8 + d.x * (CW - 16), cy: pistonY + 8 + d.y * Math.max(1, BOT - pistonY - 16), r: 3.2, fill: "var(--accent)", opacity: 0.8 }));
+  }
+  // piston and rod
+  svg.appendChild(el("rect", { x: CX + CW / 2 - 6, y: TOP_MAX - 40, width: 12, height: pistonY - TOP_MAX + 30, fill: "var(--steel)" }));
+  svg.appendChild(el("rect", { x: CX + 2, y: pistonY - 16, width: CW - 4, height: 16, fill: "#5d6b78" }));
+  const tag = { volume: ["locked", "var(--heat)"], pressure: ["free", "var(--ok)"], temperature: ["moves to keep T", "var(--accent)"], noheat: ["moved by you", "var(--accent)"] }[S.mode];
+  if (S.mode === "volume") for (const sx of [CX - 8, CX + CW - 4]) svg.appendChild(el("rect", { x: sx, y: pistonY - 12, width: 12, height: 8, fill: "var(--heat)" }));
+  svg.appendChild(el("text", { x: CX + CW / 2, y: TOP_MAX - 46, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: tag[1] }, tag[0]));
+  // volume scale
+  for (let v = 0; v <= V_MAX; v += 1) {
+    const y = BOT - vToH(v);
+    svg.appendChild(el("line", { x1: CX + CW, y1: y, x2: CX + CW + (v % 5 ? 6 : 12), y2: y, stroke: "var(--fg)", "stroke-width": 1 }));
+    if (v % 5 === 0 && v > 0) svg.appendChild(el("text", { x: CX + CW + 16, y: y + 4, "font-size": 12, fill: "var(--fg)" }, v + " L"));
+  }
+  // thermometer
+  const tx = 66, tTop = 120, tBot = 360;
+  svg.appendChild(el("rect", { x: tx - 7, y: tTop, width: 14, height: tBot - tTop, rx: 7, fill: "#fff", stroke: "var(--steel)", "stroke-width": 2 }));
+  const frac = (S.T - T_MIN) / (T_MAX - T_MIN);
+  svg.appendChild(el("rect", { x: tx - 4, y: tBot - frac * (tBot - tTop), width: 8, height: frac * (tBot - tTop), fill: "var(--heat)" }));
+  svg.appendChild(el("circle", { cx: tx, cy: tBot + 10, r: 12, fill: "var(--heat)" }));
+  svg.appendChild(el("line", { x1: tx + 12, y1: 300, x2: CX, y2: 300, stroke: "var(--steel)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+  svg.appendChild(el("text", { x: tx, y: tTop - 30, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "Thermometer"));
+  svg.appendChild(el("text", { x: tx, y: tTop - 10, "text-anchor": "middle", "font-size": 18, "font-weight": 700, "font-family": "IBM Plex Mono, monospace", fill: "var(--fg)" }, fmt(C(S.T)) + " °C"));
+  // pressure gauge, piped into the gas at the bottom of the cylinder
+  const gx = 420, gy = 74;
+  svg.appendChild(el("polyline", { points: (CX + CW) + "," + (BOT - 6) + " 468," + (BOT - 6) + " 468," + gy + " " + (gx + 32) + "," + gy, fill: "none", stroke: "var(--steel)", "stroke-width": 3 }));
+  svg.appendChild(el("circle", { cx: gx, cy: gy, r: 32, fill: "#fff", stroke: "var(--steel)", "stroke-width": 3 }));
+  const ang = Math.PI * (0.75 + 1.5 * Math.min(1, P() / 400));
+  svg.appendChild(el("line", { x1: gx, y1: gy, x2: gx + 24 * Math.cos(ang), y2: gy + 24 * Math.sin(ang), stroke: "var(--heat)", "stroke-width": 3 }));
+  svg.appendChild(el("text", { x: gx, y: gy - 42, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "Pressure"));
+  svg.appendChild(el("text", { x: gx - 8, y: gy + 56, "text-anchor": "middle", "font-size": 18, "font-weight": 700, "font-family": "IBM Plex Mono, monospace", fill: "var(--fg)" }, fmt(P()) + " kPa"));
+  // volume readout
+  svg.appendChild(el("text", { x: gx - 8, y: 240, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "Volume"));
+  svg.appendChild(el("text", { x: gx - 8, y: 262, "text-anchor": "middle", "font-size": 18, "font-weight": 700, "font-family": "IBM Plex Mono, monospace", fill: "var(--fg)" }, fmt(S.V, false, 3) + " L"));
+}
+
+// ---- Boiling water (Exceeding set-up). 0.043 kg of water at 23 °C under a free piston at 1 atm; a heater of constant
+// power gives 61,700 J in total. Model (in the plan, not on screen): the liquid's own expansion is ignored (< 0.2 J of
+// work); steam at 100 °C and 1 atm takes up 1.673 L per gram, so each gram does P·ΔV = 169.4 J of work on the piston
+// (NIST Chemistry WebBook: v_g = 1.6734 m³/kg, h_fg − u_fg = 169.4 kJ/kg at 101.325 kPa); L_v = 2.26 × 10⁶ J/kg (Obelas).
+const BW = { m: 0.043, c: 4180, T0: 23, Lv: 2.26e6, wPerG: 169.4, Qtot: 61700, LperG: 1.673, power: 6860 };   // power in J/s
+BW.Q1 = BW.m * BW.c * (100 - BW.T0);               // heat to bring the water to 100 °C: 13,839.98 J
+const X = { q: 0, running: false, last: 0, matched: false };
+const bubbles = Array.from({ length: 18 }, () => ({ x: Math.random(), y: Math.random(), r: 1.5 + Math.random() * 2 }));
+const wisps = Array.from({ length: 14 }, () => ({ x: Math.random(), y: Math.random(), r: 6 + Math.random() * 10 }));
+
+function boilState(q) {                             // temperature, mass of steam (kg) and liquid left after q joules
+  if (q <= BW.Q1) return { T: BW.T0 + q / (BW.m * BW.c), steam: 0, water: BW.m };
+  const steam = Math.min(BW.m, (q - BW.Q1) / BW.Lv);
+  return { T: 100, steam, water: BW.m - steam };
+}
+const BOIL_ANSWER = (() => { const g = Math.round(boilState(BW.Qtot).steam * 1e5) / 100;   // 21.18 g, as students round it
+  const W = g * BW.wPerG; return { g, W, dE: BW.Qtot - W }; })();  // 3,587.89 J and 58,112.11 J
+
+function drawBoil() {
+  svg.textContent = "";
+  const st = boilState(X.q), boiling = X.running && X.q > BW.Q1, heating = X.running;
+  const HW = 24, waterH = HW * st.water / BW.m, waterTop = BOT - waterH;
+  const steamL = st.steam * 1000 * BW.LperG, steamH = (steamL / 40) * (BOT - HW - TOP_MAX);
+  const pistonY = waterTop - steamH;                // bottom face of the piston
+  // heater plate: red while it is on
+  svg.appendChild(el("rect", { x: CX - 30, y: BOT + 6, width: CW + 60, height: 22, rx: 5, fill: heating ? "rgb(236,96,96)" : "#b8c0c8", stroke: "var(--steel)", "stroke-width": 2 }));
+  svg.appendChild(el("text", { x: CX + CW / 2, y: BOT + 50, "text-anchor": "middle", "font-size": 14, fill: "var(--muted)", "font-weight": 700 }, "heater: 61,700 J in total"));
+  // cylinder
+  svg.appendChild(el("rect", { x: CX, y: TOP_MAX - 10, width: CW, height: BOT - TOP_MAX + 10, fill: "#fff", stroke: "var(--steel)", "stroke-width": 4 }));
+  // steam between the water and the piston
+  if (steamH > 0.5) {
+    svg.appendChild(el("rect", { x: CX + 2, y: pistonY, width: CW - 4, height: steamH, fill: "#eef1f4" }));
+    for (const w of wisps) svg.appendChild(el("circle", { cx: CX + 10 + w.x * (CW - 20), cy: pistonY + 6 + w.y * Math.max(1, steamH - 12), r: Math.min(w.r, steamH / 2), fill: "#ffffff", opacity: 0.8 }));
+    if (steamH > 24) svg.appendChild(el("text", { x: CX + CW / 2, y: pistonY + steamH / 2 + 5, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--muted)" }, "steam"));
+  }
+  // water, with bubbles while it boils
+  svg.appendChild(el("rect", { x: CX + 2, y: waterTop, width: CW - 4, height: waterH, fill: "#7fb8e6" }));
+  if (boiling) for (const b of bubbles) svg.appendChild(el("circle", { cx: CX + 8 + b.x * (CW - 16), cy: waterTop + 2 + b.y * Math.max(1, waterH - 4), r: Math.min(b.r, waterH / 3), fill: "#fff", opacity: 0.9 }));
+  svg.appendChild(el("text", { x: CX + CW + 10, y: waterTop + waterH / 2 + 5, "font-size": 13, "font-weight": 700, fill: "#1d5b8a" }, "water"));
+  // free piston and rod; the outside air pushes down at 1 atm
+  svg.appendChild(el("rect", { x: CX + CW / 2 - 6, y: TOP_MAX - 40, width: 12, height: pistonY - TOP_MAX + 24, fill: "var(--steel)" }));
+  svg.appendChild(el("rect", { x: CX + 2, y: pistonY - 16, width: CW - 4, height: 16, fill: "#5d6b78" }));
+  svg.appendChild(el("text", { x: CX + CW / 2, y: TOP_MAX - 46, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "var(--ok)" }, "free piston · outside air 1 atm"));
+  // thermometer in the water (0 °C … 120 °C)
+  const tx = 66, tTop = 120, tBot = 360, frac = Math.max(0, Math.min(1, st.T / 120));
+  svg.appendChild(el("rect", { x: tx - 7, y: tTop, width: 14, height: tBot - tTop, rx: 7, fill: "#fff", stroke: "var(--steel)", "stroke-width": 2 }));
+  svg.appendChild(el("rect", { x: tx - 4, y: tBot - frac * (tBot - tTop), width: 8, height: frac * (tBot - tTop), fill: "var(--heat)" }));
+  svg.appendChild(el("circle", { cx: tx, cy: tBot + 10, r: 12, fill: "var(--heat)" }));
+  svg.appendChild(el("line", { x1: tx + 12, y1: BOT - 8, x2: CX, y2: BOT - 8, stroke: "var(--steel)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+  svg.appendChild(el("text", { x: tx, y: tTop - 30, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "Thermometer"));
+  svg.appendChild(el("text", { x: tx, y: tTop - 10, "text-anchor": "middle", "font-size": 18, "font-weight": 700, "font-family": "IBM Plex Mono, monospace", fill: "var(--fg)" }, fmt(st.T) + " °C"));
+}
+
+function stepBoil(now) {                            // the heater runs at constant power until 61,700 J are given
+  if (!X.running) return;
+  const dt = Math.min(0.1, (now - X.last) / 1000); X.last = now;
+  X.q = Math.min(BW.Qtot, X.q + BW.power * dt);
+  if (X.q > BW.Q1) for (const b of bubbles) { b.y -= 0.04; if (b.y < 0) { b.y = 1; b.x = Math.random(); } }
+  for (const w of wisps) { w.y -= 0.004; w.x += (Math.random() - 0.5) * 0.01; if (w.y < 0) w.y = 1; w.x = Math.min(1, Math.max(0, w.x)); }
+  if (X.q >= BW.Qtot) X.running = false;
+  const phase = X.running ? (X.q > BW.Q1 ? "boiling" : "heating") : "stopped";
+  if (phase !== X.phase) { X.phase = phase; renderBoil(); }   // update the message only when the stage changes
+}
+
+function renderBoil() {
+  const go = $("b-go");
+  go.disabled = X.q >= BW.Qtot;
+  go.textContent = X.running ? "❚❚ Pause" : X.q > 0 && X.q < BW.Qtot ? "▶ Continue" : "▶ Start";
+  $("b-msg").textContent = X.q >= BW.Qtot ? "The heater has given all 61,700 J and switched off." : X.running ? (X.q > BW.Q1 ? "Boiling…" : "Heating…") : "";
+  $("b-m").disabled = $("b-e").disabled = $("b-check").disabled = X.matched;
+}
+
+function num(t) {                                   // accepts −, spaces and thousands commas
+  t = String(t).trim().replace(/[−–]/g, "-").replace(/[,\s]/g, "");
+  return t === "" || isNaN(Number(t)) ? null : Number(t);
+}
+function checkBoil() {
+  const m = num($("b-m").value), e = num($("b-e").value), out = $("b-res");
+  if (m === null || e === null) { out.textContent = "Type both values first."; out.className = "res bad"; return; }
+  const mOk = Math.abs(m - BOIL_ANSWER.g) <= 0.1, eOk = Math.abs(e - BOIL_ANSWER.dE) <= 10;
+  if (mOk && eOk) {
+    X.matched = true;
+    out.textContent = `Matches: ${fmt(BOIL_ANSWER.g)} g of the water boils, the steam does ${fmt(BOIL_ANSWER.W)} J of work on the piston, and the thermal energy rises by ${fmt(BOIL_ANSWER.dE)} J.`;
+    out.className = "res ok";
+  } else {
+    out.textContent = `Mass of water that boils: ${mOk ? "matches" : "doesn't match"}. Change in thermal energy: ${eOk ? "matches" : "doesn't match"}.`;
+    out.className = "res bad";
+  }
+  renderBoil();
+}
+
+// ---- Levels (no task text in the lab; the tasks are on the slides, teacher 2026-10-19). Emerging, Developing and
+// Proficient use the gas cylinder; Exceeding uses the boiling water. A new level starts from a fresh lab.
+let setup = "gas", level = "Proficient";
+function setLevel(k) {
+  level = k;
+  document.querySelectorAll("[data-level]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.level === k)));
+  reset(); rows = []; renderRows();
+  X.q = 0; X.running = false; X.matched = false; X.phase = "";
+  $("b-m").value = $("b-e").value = ""; $("b-res").textContent = "";
+  setSetup(k === "Exceeding" ? "boil" : "gas");
+}
+function setSetup(k) {
+  setup = k;
+  $("gasSide").hidden = $("dataBox").hidden = k !== "gas";
+  $("boilSide").hidden = k !== "boil";
+  if (k !== "boil") X.running = false;
+  svg.setAttribute("aria-label", k === "gas" ? "A cylinder of air with a piston on a heater, with a thermometer and a pressure gauge"
+                                             : "Water in a cylinder under a free piston on a heater, with a thermometer");
+  renderBoil();
+}
+
+// Molecules move faster when the gas is hotter (speed ∝ √T); the piston glides to its new position; the heater glow fades.
+function tick(now) {
+  if (setup === "boil") { stepBoil(now); drawBoil(); requestAnimationFrame(tick); return; }
+  const sp = 0.004 * Math.sqrt(S.T / T_START);
+  for (const d of dots) {
+    d.x += sp * Math.cos(d.a); d.y += sp * Math.sin(d.a) * 1.6;
+    if (d.x < 0 || d.x > 1) { d.a = Math.PI - d.a; d.x = Math.min(1, Math.max(0, d.x)); }
+    if (d.y < 0 || d.y > 1) { d.a = -d.a; d.y = Math.min(1, Math.max(0, d.y)); }
+  }
+  shownV += (S.V - shownV) * 0.2;
+  glow *= 0.97; if (Math.abs(glow) < 0.02) glow = 0;
+  draw();
+  requestAnimationFrame(tick);
+}
+
+// ---- Controls
+const $ = id => document.getElementById(id);
+const NAMES = { volume: "Volume", pressure: "Pressure", temperature: "Temperature", noheat: "No heat" };
+
+function update() {
+  const off = S.mode === "noheat";
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === S.mode)));
+  document.querySelectorAll("[data-q]").forEach(b => b.disabled = off);
+  document.querySelectorAll("[data-w]").forEach(b => b.disabled = !off);
+  $("heaternote").textContent = off ? "The heater is off in No heat. Use the piston." : "Each button adds or removes exactly that much heat.";
+  $("pistonnote").textContent = off ? "Push in: you do that much work on the gas. Pull out: the gas does that much work."
+                                    : "Choose No heat to move the piston yourself.";
+  $("mQ").textContent = fmt(S.Q, true);
+  $("mW").textContent = fmt(S.W, true);
+  $("mU").textContent = fmt(dE(), true);
+}
+
+function renderRows() {
+  const tb = $("rows"); tb.textContent = "";
+  if (!rows.length) { tb.innerHTML = '<tr class="empty"><td colspan="8">Press Record to add a row.</td></tr>'; return; }
+  rows.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    const cells = [i + 1, r.mode, fmt(r.Q, true), fmt(r.W, true), fmt(r.U, true), fmt(r.T), fmt(r.P), fmt(r.V, false, 3)];
+    cells.forEach((c, j) => { const td = document.createElement("td"); td.textContent = c; if (j >= 2) td.className = "num"; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+}
+
+// Every click clears the range warning first.
+document.addEventListener("click", () => { $("limit").textContent = ""; }, true);
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => heat(Number(b.dataset.q)));
+document.querySelectorAll("[data-w]").forEach(b => b.onclick = () => work(Number(b.dataset.w)));
+// Record saves the run and zeros the meters, so each row of the table is one run.
+$("record").onclick = () => { rows.push({ mode: NAMES[S.mode], Q: S.Q, W: S.W, U: dE(), T: C(S.T), P: P(), V: S.V }); renderRows(); zero(); };
+$("reset").onclick = reset;
+$("clear").onclick = () => { rows = []; renderRows(); };
+
+document.querySelectorAll("[data-level]").forEach(b => b.onclick = () => { if (b.dataset.level !== level) setLevel(b.dataset.level); });
+$("b-go").onclick = () => { if (X.q >= BW.Qtot) return; X.running = !X.running; X.last = performance.now(); renderBoil(); };
+$("b-reset").onclick = () => { X.q = 0; X.running = false; renderBoil(); };
+$("b-check").onclick = checkBoil;
+
+renderRows(); update(); setLevel("Proficient"); requestAnimationFrame(tick);
+</script>
+</body>
+</html>
